@@ -8,6 +8,7 @@ from flask import Flask, request as flask_request
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     Application,
+    CommandHandler,
     MessageHandler,
     ConversationHandler,
     ContextTypes,
@@ -78,7 +79,7 @@ ASK_NAME, ASK_EMAIL = range(2)
 
 # ========== TELEGRAM HANDLERS ==========
 async def show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print("📩 show_menu triggered!")  # دیباگ مهم
+    print("📩 show_menu triggered!")  # debug log
     await update.message.reply_text(
         "👋 سلام! به ربات دیجیتال مارکتینگ خوش آمدید.\n\n"
         "از منوی زیر انتخاب کنید:",
@@ -198,7 +199,7 @@ async def appointment(update: Update, context: ContextTypes.DEFAULT_TYPE):
 telegram_request = HTTPXRequest(read_timeout=20, connect_timeout=10)
 application = Application.builder().token(TELEGRAM_TOKEN).request(telegram_request).build()
 
-# Handlers
+# Conversation
 conv_handler = ConversationHandler(
     entry_points=[MessageHandler(filters.Regex("^(📝 ثبت‌نام|ثبت نام)$"), start_registration)],
     states={
@@ -208,8 +209,10 @@ conv_handler = ConversationHandler(
     fallbacks=[],
 )
 
+# Handlers
 application.add_handler(conv_handler)
-application.add_handler(MessageHandler(filters.Regex("^(/start|/start@.+|🏁 شروع|🏁 منو اصلی)$"), show_menu))
+application.add_handler(CommandHandler("start", show_menu))
+application.add_handler(MessageHandler(filters.Regex("^(🏁 شروع|🏁 منو اصلی)$"), show_menu))
 application.add_handler(MessageHandler(filters.Regex("^(📘 درباره ما)$"), about))
 application.add_handler(MessageHandler(filters.Regex("^(🎓 آموزش رایگان|🎓 بریم سراغ آموزش)$"), start_learning))
 application.add_handler(MessageHandler(filters.Regex("^(➡️ مرحله ۲)$"), learning_step2))
@@ -225,35 +228,23 @@ loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
 
-@flask_app.route(f"/webhook/{TELEGRAM_TOKEN}", methods=["POST", "GET"])
+@flask_app.route(f"/webhook/{TELEGRAM_TOKEN}", methods=["POST"])
 def webhook():
-    if flask_request.method == "GET":
-        return "✅ Webhook endpoint active.", 200
     try:
         data = flask_request.get_json(force=True)
-        # این مهمه که ببینیم تلگرام چی فرستاده
         print("📦 RAW UPDATE:", json.dumps(data, ensure_ascii=False))
         update = Update.de_json(data, application.bot)
         asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
         print("✅ Processed update successfully.")
+        return "ok", 200
     except Exception as e:
         print("❌ Webhook error:", e)
-    return "ok"
+        return "error", 500
 
 
 @flask_app.route("/", methods=["GET"])
 def index():
     return f"✅ Bot running — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"
-
-
-@flask_app.route("/meta.json", methods=["GET"])
-def meta():
-    return {"status": "ok", "bot": "digitalmarketingacademy-bot"}, 200
-
-
-@flask_app.route("/favicon.ico", methods=["GET"])
-def favicon():
-    return "", 204
 
 
 @flask_app.route("/healthz", methods=["GET"])
@@ -264,8 +255,7 @@ def health_check():
 def set_webhook():
     async def setup():
         try:
-            delete_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook"
-            requests.get(delete_url, timeout=10)
+            requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook", timeout=10)
             await application.initialize()
             webhook_url = f"{ROOT_URL.rstrip('/')}/webhook/{TELEGRAM_TOKEN}"
             await application.bot.set_webhook(webhook_url)
@@ -277,6 +267,7 @@ def set_webhook():
 
 
 set_webhook()
+
 
 if __name__ == "__main__":
     print("🚀 Starting Digital Marketing Bot with advanced flow...")
