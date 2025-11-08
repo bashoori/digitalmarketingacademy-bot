@@ -20,9 +20,13 @@ SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "@support")
 ROOT_URL = os.getenv("ROOT_URL", "https://digitalmarketingacademy-bot.onrender.com")
 PORT = int(os.getenv("PORT", "10000"))
 
+if not TELEGRAM_TOKEN:
+    raise RuntimeError("TELEGRAM_TOKEN is not set!")
 
 # ========== STORAGE ==========
 LEADS_FILE = "leads.json"
+
+
 def load_leads():
     if not os.path.exists(LEADS_FILE):
         return []
@@ -31,6 +35,7 @@ def load_leads():
             return json.load(f)
     except Exception:
         return []
+
 
 def save_leads(leads):
     with open(LEADS_FILE, "w", encoding="utf-8") as f:
@@ -43,9 +48,13 @@ def normalize_email(raw: str) -> str:
         return ""
     return raw.replace("\u200c", "").replace("\u200f", "").strip().lower()
 
+
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
+
+
 def is_valid_email(email: str) -> bool:
     return EMAIL_RE.match(email.strip()) if email else False
+
 
 def post_to_sheet(payload: dict, timeout: int = 10) -> bool:
     if not GOOGLE_SHEET_WEBAPP_URL:
@@ -62,16 +71,16 @@ def post_to_sheet(payload: dict, timeout: int = 10) -> bool:
 
 # ========== MENU ==========
 MAIN_MENU = ReplyKeyboardMarkup(
-    [["🏁 شروع", "📘 درباره ما"],
-     ["📝 ثبت‌نام", "🎓 آموزش رایگان"],
-     ["💼 فرانچایز", "💬 پشتیبانی"]],
+    [
+        ["🏁 شروع", "📘 درباره ما"],
+        ["📝 ثبت‌نام", "🎓 آموزش رایگان"],
+        ["💼 فرانچایز", "💬 پشتیبانی"],
+    ],
     resize_keyboard=True,
 )
 
-
 # ========== STATES ==========
 ASK_NAME, ASK_EMAIL = range(2)
-
 
 # ========== TELEGRAM HANDLERS ==========
 async def show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -191,10 +200,11 @@ async def appointment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# ========== TELEGRAM APP ==========
+# ========== TELEGRAM APPLICATION ==========
 telegram_request = HTTPXRequest(read_timeout=20, connect_timeout=10)
 application = Application.builder().token(TELEGRAM_TOKEN).request(telegram_request).build()
 
+# conversation for registration
 conv_handler = ConversationHandler(
     entry_points=[MessageHandler(filters.Regex("^(📝 ثبت‌نام|ثبت نام)$"), start_registration)],
     states={
@@ -204,6 +214,7 @@ conv_handler = ConversationHandler(
     fallbacks=[],
 )
 
+# add handlers
 application.add_handler(conv_handler)
 application.add_handler(CommandHandler("start", show_menu))
 application.add_handler(MessageHandler(filters.Regex("^(🏁 شروع|🏁 منو اصلی)$"), show_menu))
@@ -215,17 +226,17 @@ application.add_handler(MessageHandler(filters.Regex("^(💼 فرانچایز)$"
 application.add_handler(MessageHandler(filters.Regex("^(📅 رزرو جلسه)$"), appointment))
 application.add_handler(MessageHandler(filters.Regex("^(💬 پشتیبانی)$"), support))
 
-
-# ========== FLASK & WEBHOOK ==========
+# ========== FLASK & EVENT LOOP ==========
 flask_app = Flask(__name__)
 
+# create loop and keep it alive in background thread (Render-safe)
 loop = asyncio.new_event_loop()
-asyncio.set_event_loop(loop)
 
-# 🧩 Keep the event loop alive in background (Render-safe)
+
 def start_event_loop():
     asyncio.set_event_loop(loop)
     loop.run_forever()
+
 
 threading.Thread(target=start_event_loop, daemon=True).start()
 
@@ -236,6 +247,7 @@ def webhook():
         data = flask_request.get_json(force=True)
         print("📦 RAW UPDATE:", json.dumps(data, ensure_ascii=False))
         update = Update.de_json(data, application.bot)
+        # process update inside running loop
         asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
         print("✅ Processed update successfully.")
         return "ok", 200
@@ -257,8 +269,17 @@ def health_check():
 def set_webhook():
     async def setup():
         try:
-            # delete any old webhook
-            requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook", timeout=10)
+            # delete old webhook in thread (blocking)
+            await asyncio.to_thread(
+                requests.get,
+                f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook",
+                10,
+            )
+        except Exception:
+            # even if delete fails, continue
+            pass
+
+        try:
             await application.initialize()
             webhook_url = f"{ROOT_URL.rstrip('/')}/webhook/{TELEGRAM_TOKEN}"
             await application.bot.set_webhook(webhook_url)
@@ -266,9 +287,8 @@ def set_webhook():
         except Exception as e:
             print("⚠️ Webhook setup failed:", e)
 
-    # schedule coroutine safely inside the running loop
+    # schedule setup in the background loop
     asyncio.run_coroutine_threadsafe(setup(), loop)
-
 
 
 set_webhook()
