@@ -19,7 +19,7 @@ from telegram.request import HTTPXRequest
 # ========== ENV CONFIG ==========
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GOOGLE_SHEET_WEBAPP_URL = os.getenv("GOOGLE_SHEET_WEBAPP_URL")
-SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "@bita_support")
+SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "@support")
 ROOT_URL = os.getenv("ROOT_URL", "https://digitalmarketingbiz-bot.onrender.com")
 PORT = int(os.getenv("PORT", "10000"))
 
