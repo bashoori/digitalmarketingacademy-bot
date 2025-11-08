@@ -255,14 +255,20 @@ def health_check():
 
 
 def set_webhook():
-    try:
-        requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook", timeout=10)
-        loop.run_until_complete(application.initialize())
-        webhook_url = f"{ROOT_URL.rstrip('/')}/webhook/{TELEGRAM_TOKEN}"
-        loop.run_until_complete(application.bot.set_webhook(webhook_url))
-        print(f"✅ Webhook set to {webhook_url}")
-    except Exception as e:
-        print("⚠️ Webhook setup failed:", e)
+    async def setup():
+        try:
+            # delete any old webhook
+            requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook", timeout=10)
+            await application.initialize()
+            webhook_url = f"{ROOT_URL.rstrip('/')}/webhook/{TELEGRAM_TOKEN}"
+            await application.bot.set_webhook(webhook_url)
+            print(f"✅ Webhook set to {webhook_url}")
+        except Exception as e:
+            print("⚠️ Webhook setup failed:", e)
+
+    # schedule coroutine safely inside the running loop
+    asyncio.run_coroutine_threadsafe(setup(), loop)
+
 
 
 set_webhook()
