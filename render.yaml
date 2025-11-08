@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: digitalmarketingbiz-bot
+    env: python
+    region: oregon
+    plan: starter
+
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:flask_app --worker-class gthread --threads 4 --timeout 120
+
+    envVars:
+      - key: TELEGRAM_TOKEN
+        sync: false
+      - key: GOOGLE_SHEET_WEBAPP_URL
+        sync: false
+      - key: ROOT_URL
+        value: https://digitalmarketingbiz-bot.onrender.com
+      - key: PORT
+        value: 10000
+
+    healthCheckPath: /
+    autoDeploy: true
