@@ -8,7 +8,6 @@ from flask import Flask, request as flask_request
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     Application,
-    CommandHandler,
     MessageHandler,
     ConversationHandler,
     ContextTypes,
@@ -77,7 +76,7 @@ ASK_NAME, ASK_EMAIL = range(2)
 
 # ========== TELEGRAM HANDLERS ==========
 async def show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print("📩 Received /start command")
+    print("📩 Received start/menu command")
     await update.message.reply_text(
         "👋 سلام! به ربات دیجیتال مارکتینگ خوش آمدید.\n\n"
         "از منوی زیر انتخاب کنید:",
@@ -135,7 +134,7 @@ async def ask_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-# === Free Education Flow ===
+# === Education & Franchise ===
 async def start_learning(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🎓 *مرحله ۱: چرا الان بهترین زمان شروعه؟*\n"
@@ -163,7 +162,6 @@ async def learning_step3(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# === Franchise Info ===
 async def franchise_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "💼 *فرانچایز چیست؟*\n"
@@ -175,63 +173,48 @@ async def franchise_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# === Support ===
 async def support(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        f"💬 برای ارتباط با پشتیبانی لطفاً پیام بده به: {SUPPORT_USERNAME}\n\n"
-        "یا پیامت رو همینجا بنویس تا برای تیم پشتیبانی ارسال بشه.",
+        f"💬 برای ارتباط با پشتیبانی پیام بده به: {SUPPORT_USERNAME}",
         reply_markup=ReplyKeyboardMarkup([["🏁 منو اصلی"]], resize_keyboard=True),
     )
 
 
-# === Appointment ===
 async def appointment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "📅 برای رزرو جلسه لطفاً وارد این لینک شوید:\n\n"
-        "https://calendly.com/your-link\n\n"
-        "یا از منوی زیر گزینه دیگری انتخاب کنید.",
+        "📅 برای رزرو جلسه رایگان وارد لینک شو:\nhttps://calendly.com/your-link",
         reply_markup=MAIN_MENU,
     )
-
-
-# === Cancel ===
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("❌ لغو شد.", reply_markup=MAIN_MENU)
-    return ConversationHandler.END
 
 
 # ========== APP ==========
 telegram_request = HTTPXRequest(read_timeout=20, connect_timeout=10)
 application = Application.builder().token(TELEGRAM_TOKEN).request(telegram_request).build()
 
+# Conversation + menu handlers
 conv_handler = ConversationHandler(
     entry_points=[MessageHandler(filters.Regex("^(📝 ثبت‌نام|ثبت نام)$"), start_registration)],
-    states={
-        ASK_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_name)],
-        ASK_EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_email)],
-    },
-    fallbacks=[CommandHandler("cancel", cancel)],
+    states={ASK_NAME: [MessageHandler(filters.TEXT, ask_name)], ASK_EMAIL: [MessageHandler(filters.TEXT, ask_email)]},
+    fallbacks=[],
 )
 
 application.add_handler(conv_handler)
-application.add_handler(CommandHandler("start", show_menu))
-application.add_handler(MessageHandler(filters.Regex("^(🏁 شروع|🏁 منو اصلی)$"), show_menu))
+application.add_handler(MessageHandler(filters.Regex("^(/start|/start@.+|🏁 شروع|🏁 منو اصلی)$"), show_menu))
 application.add_handler(MessageHandler(filters.Regex("^(📘 درباره ما)$"), about))
-application.add_handler(MessageHandler(filters.Regex("^(📅 رزرو جلسه)$"), appointment))
 application.add_handler(MessageHandler(filters.Regex("^(🎓 آموزش رایگان|🎓 بریم سراغ آموزش)$"), start_learning))
 application.add_handler(MessageHandler(filters.Regex("^(➡️ مرحله ۲)$"), learning_step2))
 application.add_handler(MessageHandler(filters.Regex("^(➡️ مرحله ۳)$"), learning_step3))
 application.add_handler(MessageHandler(filters.Regex("^(💼 فرانچایز)$"), franchise_info))
+application.add_handler(MessageHandler(filters.Regex("^(📅 رزرو جلسه)$"), appointment))
 application.add_handler(MessageHandler(filters.Regex("^(💬 پشتیبانی)$"), support))
 
 
 # ========== FLASK & WEBHOOK ==========
 flask_app = Flask(__name__)
-loop = asyncio.new_event_loop()
-asyncio.set_event_loop(loop)
+loop = asyncio.get_event_loop()
 
 
-@flask_app.route(f"/webhook/{TELEGRAM_TOKEN}", methods=["GET", "POST"])
+@flask_app.route(f"/webhook/{TELEGRAM_TOKEN}", methods=["POST", "GET"])
 def webhook():
     if flask_request.method == "GET":
         return "✅ Webhook endpoint active.", 200
@@ -252,43 +235,24 @@ def index():
 
 @flask_app.route("/healthz", methods=["GET"])
 def health_check():
-    return {"status": "ok", "service": "digitalmarketingacademy-bot", "timestamp": datetime.now(timezone.utc).isoformat()}, 200
-
-
-@flask_app.route("/meta.json", methods=["GET"])
-def meta():
-    return {"status": "ok", "app": "digitalmarketingacademy-bot"}, 200
+    return {"status": "ok", "service": "digitalmarketingacademy-bot"}, 200
 
 
 def set_webhook():
     try:
-        # clean up old webhook first
+        # clean old webhook
         delete_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook"
-        resp = requests.get(delete_url, timeout=10)
-        print("🧹 deleteWebhook:", resp.status_code, resp.text[:120])
-
-        # init + set new webhook
+        requests.get(delete_url, timeout=10)
         loop.run_until_complete(application.initialize())
-        loop.run_until_complete(application.start())
-
         webhook_url = f"{ROOT_URL.rstrip('/')}/webhook/{TELEGRAM_TOKEN}"
         loop.run_until_complete(application.bot.set_webhook(webhook_url))
         print(f"✅ Webhook set to {webhook_url}")
-        print("✅ Bot started successfully — ready to receive messages.")
     except Exception as e:
         print("⚠️ Webhook setup failed:", e)
 
 
 set_webhook()
 
-
 if __name__ == "__main__":
     print("🚀 Starting Digital Marketing Bot with advanced flow...")
-    try:
-        flask_app.run(host="0.0.0.0", port=PORT)
-    finally:
-        try:
-            loop.close()
-            print("🧹 Event loop closed cleanly.")
-        except Exception:
-            pass
+    flask_app.run(host="0.0.0.0", port=PORT)
