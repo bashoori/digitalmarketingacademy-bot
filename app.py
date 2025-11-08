@@ -200,6 +200,10 @@ async def appointment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📅 برای رزرو جلسه رایگان وارد لینک شو:\nhttps://calendly.com/your-link",
         reply_markup=MAIN_MENU,
     )
+# === Ping Test ===
+async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print("🏓 Ping command received")
+    await update.message.reply_text("pong 🟢 — bot is alive and can send messages!")
 
 
 # ========== TELEGRAM APPLICATION ==========
@@ -219,6 +223,7 @@ conv_handler = ConversationHandler(
 # add handlers
 application.add_handler(conv_handler)
 application.add_handler(CommandHandler("start", show_menu))
+application.add_handler(CommandHandler("ping", ping))
 application.add_handler(MessageHandler(filters.Regex("^(🏁 شروع|🏁 منو اصلی)$"), show_menu))
 application.add_handler(MessageHandler(filters.Regex("^(📘 درباره ما)$"), about))
 application.add_handler(MessageHandler(filters.Regex("^(🎓 آموزش رایگان|🎓 بریم سراغ آموزش)$"), start_learning))
