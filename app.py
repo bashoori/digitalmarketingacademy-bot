@@ -12,7 +12,6 @@ from telegram.ext import (
 )
 from telegram.request import HTTPXRequest
 
-
 # ========== ENV CONFIG ==========
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GOOGLE_SHEET_WEBAPP_URL = os.getenv("GOOGLE_SHEET_WEBAPP_URL")
@@ -21,11 +20,10 @@ ROOT_URL = os.getenv("ROOT_URL", "https://digitalmarketingacademy-bot.onrender.c
 PORT = int(os.getenv("PORT", "10000"))
 
 if not TELEGRAM_TOKEN:
-    raise RuntimeError("TELEGRAM_TOKEN is not set!")
+    raise RuntimeError("❌ TELEGRAM_TOKEN is not set!")
 
 # ========== STORAGE ==========
 LEADS_FILE = "leads.json"
-
 
 def load_leads():
     if not os.path.exists(LEADS_FILE):
@@ -36,11 +34,9 @@ def load_leads():
     except Exception:
         return []
 
-
 def save_leads(leads):
     with open(LEADS_FILE, "w", encoding="utf-8") as f:
         json.dump(leads, f, ensure_ascii=False, indent=2)
-
 
 # ========== HELPERS ==========
 def normalize_email(raw: str) -> str:
@@ -48,13 +44,10 @@ def normalize_email(raw: str) -> str:
         return ""
     return raw.replace("\u200c", "").replace("\u200f", "").strip().lower()
 
-
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
-
 
 def is_valid_email(email: str) -> bool:
     return EMAIL_RE.match(email.strip()) if email else False
-
 
 def post_to_sheet(payload: dict, timeout: int = 10) -> bool:
     if not GOOGLE_SHEET_WEBAPP_URL:
@@ -67,7 +60,6 @@ def post_to_sheet(payload: dict, timeout: int = 10) -> bool:
     except Exception as e:
         print("❌ post_to_sheet error:", e)
         return False
-
 
 # ========== MENU ==========
 MAIN_MENU = ReplyKeyboardMarkup(
@@ -90,9 +82,6 @@ async def show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "از منوی زیر انتخاب کنید:",
         reply_markup=MAIN_MENU,
     )
-    print("📨 Replying to user:", update.effective_user.id, update.message.text)
-
-
 
 async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -103,18 +92,15 @@ async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=MAIN_MENU,
     )
 
-
 # === Registration ===
 async def start_registration(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📝 لطفاً نام کامل خود را وارد کنید:", reply_markup=ReplyKeyboardRemove())
     return ASK_NAME
 
-
 async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["name"] = update.message.text.strip()
     await update.message.reply_text("خوب 🌟 حالا لطفاً ایمیل خود را وارد کنید:")
     return ASK_EMAIL
-
 
 async def ask_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
     email = normalize_email(update.message.text)
@@ -146,7 +132,6 @@ async def ask_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return ConversationHandler.END
 
-
 # === Education & Franchise ===
 async def start_learning(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -157,7 +142,6 @@ async def start_learning(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=ReplyKeyboardMarkup([["➡️ مرحله ۲", "🏁 منو اصلی"]], resize_keyboard=True),
     )
 
-
 async def learning_step2(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📈 *مرحله ۲: مدل فرانچایز دیجیتال مارکتینگ چیه؟*\n"
@@ -165,7 +149,6 @@ async def learning_step2(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
         reply_markup=ReplyKeyboardMarkup([["➡️ مرحله ۳", "🏁 منو اصلی"]], resize_keyboard=True),
     )
-
 
 async def learning_step3(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -175,7 +158,6 @@ async def learning_step3(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
         reply_markup=ReplyKeyboardMarkup([["📅 رزرو جلسه", "🏁 منو اصلی"]], resize_keyboard=True),
     )
-
 
 async def franchise_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -187,30 +169,27 @@ async def franchise_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=MAIN_MENU,
     )
 
-
 async def support(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"💬 برای ارتباط با پشتیبانی پیام بده به: {SUPPORT_USERNAME}",
         reply_markup=ReplyKeyboardMarkup([["🏁 منو اصلی"]], resize_keyboard=True),
     )
 
-
 async def appointment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📅 برای رزرو جلسه رایگان وارد لینک شو:\nhttps://calendly.com/your-link",
         reply_markup=MAIN_MENU,
     )
+
 # === Ping Test ===
 async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print("🏓 Ping command received")
     await update.message.reply_text("pong 🟢 — bot is alive and can send messages!")
 
-
 # ========== TELEGRAM APPLICATION ==========
 telegram_request = HTTPXRequest(read_timeout=20, connect_timeout=10)
 application = Application.builder().token(TELEGRAM_TOKEN).request(telegram_request).build()
 
-# conversation for registration
 conv_handler = ConversationHandler(
     entry_points=[MessageHandler(filters.Regex("^(📝 ثبت‌نام|ثبت نام)$"), start_registration)],
     states={
@@ -235,18 +214,13 @@ application.add_handler(MessageHandler(filters.Regex("^(💬 پشتیبانی)$"
 
 # ========== FLASK & EVENT LOOP ==========
 flask_app = Flask(__name__)
-
-# create loop and keep it alive in background thread (Render-safe)
 loop = asyncio.new_event_loop()
-
 
 def start_event_loop():
     asyncio.set_event_loop(loop)
     loop.run_forever()
 
-
 threading.Thread(target=start_event_loop, daemon=True).start()
-
 
 @flask_app.route(f"/webhook/{TELEGRAM_TOKEN}", methods=["POST"])
 def webhook():
@@ -254,7 +228,6 @@ def webhook():
         data = flask_request.get_json(force=True)
         print("📦 RAW UPDATE:", json.dumps(data, ensure_ascii=False))
         update = Update.de_json(data, application.bot)
-        # process update inside running loop
         asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
         print("✅ Processed update successfully.")
         return "ok", 200
@@ -262,32 +235,23 @@ def webhook():
         print("❌ Webhook error:", e)
         return "error", 500
 
-
 @flask_app.route("/", methods=["GET"])
 def index():
     return f"✅ Bot running — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"
-
 
 @flask_app.route("/healthz", methods=["GET"])
 def health_check():
     return {"status": "ok", "service": "digitalmarketingacademy-bot"}, 200
 
-
-
 def set_webhook():
     async def setup():
         try:
-            # delete old webhook in thread (blocking)
+            # delete any old webhook
             await asyncio.to_thread(
                 requests.get,
                 f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook",
-                10,
+                timeout=10,
             )
-        except Exception:
-            # even if delete fails, continue
-            pass
-
-        try:
             await application.initialize()
             webhook_url = f"{ROOT_URL.rstrip('/')}/webhook/{TELEGRAM_TOKEN}"
             await application.bot.set_webhook(webhook_url)
@@ -295,12 +259,10 @@ def set_webhook():
         except Exception as e:
             print("⚠️ Webhook setup failed:", e)
 
-    # schedule setup in the background loop
     asyncio.run_coroutine_threadsafe(setup(), loop)
-
 
 set_webhook()
 
 if __name__ == "__main__":
-    print("🚀 Starting Digital Marketing Bot with advanced flow...")
+    print("🚀 Starting Digital Marketing Academy Bot...")
     flask_app.run(host="0.0.0.0", port=PORT)
