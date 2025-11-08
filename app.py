@@ -78,7 +78,7 @@ ASK_NAME, ASK_EMAIL = range(2)
 
 # ========== TELEGRAM HANDLERS ==========
 async def show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print("📩 Received start/menu command")
+    print("📩 show_menu triggered!")  # دیباگ مهم
     await update.message.reply_text(
         "👋 سلام! به ربات دیجیتال مارکتینگ خوش آمدید.\n\n"
         "از منوی زیر انتخاب کنید:",
@@ -201,7 +201,10 @@ application = Application.builder().token(TELEGRAM_TOKEN).request(telegram_reque
 # Handlers
 conv_handler = ConversationHandler(
     entry_points=[MessageHandler(filters.Regex("^(📝 ثبت‌نام|ثبت نام)$"), start_registration)],
-    states={ASK_NAME: [MessageHandler(filters.TEXT, ask_name)], ASK_EMAIL: [MessageHandler(filters.TEXT, ask_email)]},
+    states={
+        ASK_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_name)],
+        ASK_EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_email)],
+    },
     fallbacks=[],
 )
 
@@ -228,6 +231,8 @@ def webhook():
         return "✅ Webhook endpoint active.", 200
     try:
         data = flask_request.get_json(force=True)
+        # این مهمه که ببینیم تلگرام چی فرستاده
+        print("📦 RAW UPDATE:", json.dumps(data, ensure_ascii=False))
         update = Update.de_json(data, application.bot)
         asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
         print("✅ Processed update successfully.")
