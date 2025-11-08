@@ -3,8 +3,8 @@ import re
 import json
 import requests
 import asyncio
-from datetime import datetime
-from flask import Flask, request
+from datetime import datetime, timezone
+from flask import Flask, request as flask_request
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     Application,
@@ -110,7 +110,7 @@ async def ask_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "user_id": update.effective_user.id if update.effective_user else None,
         "username": update.effective_user.username if update.effective_user else None,
         "status": "Validated",
-        "created_at": datetime.utcnow().isoformat() + "Z",
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
     leads = load_leads()
@@ -187,10 +187,9 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 # ========== APP ==========
-request = HTTPXRequest(read_timeout=20, connect_timeout=10)
-application = Application.builder().token(TELEGRAM_TOKEN).request(request).build()
+telegram_request = HTTPXRequest(read_timeout=20, connect_timeout=10)
+application = Application.builder().token(TELEGRAM_TOKEN).request(telegram_request).build()
 
-# Conversation Handler for Registration
 conv_handler = ConversationHandler(
     entry_points=[MessageHandler(filters.Regex("^(📝 ثبت‌نام|ثبت نام)$"), start_registration)],
     states={
@@ -219,7 +218,7 @@ asyncio.set_event_loop(loop)
 @flask_app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
 def webhook():
     try:
-        data = request.get_json(force=True)
+        data = flask_request.get_json(force=True)
         update = Update.de_json(data, application.bot)
         asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
         print("✅ Processed update successfully.")
@@ -229,11 +228,11 @@ def webhook():
 
 @flask_app.route("/", methods=["GET"])
 def index():
-    return f"✅ Bot running — {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}"
+    return f"✅ Bot running — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"
 
 @flask_app.route("/healthz", methods=["GET"])
 def health_check():
-    return {"status": "ok", "service": "digitalmarketingacademy-bot", "timestamp": datetime.utcnow().isoformat() + "Z"}, 200
+    return {"status": "ok", "service": "digitalmarketingacademy-bot", "timestamp": datetime.now(timezone.utc).isoformat()}, 200
 
 def set_webhook():
     try:
