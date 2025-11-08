@@ -65,7 +65,9 @@ def post_to_sheet(payload: dict, timeout: int = 10) -> bool:
 
 # ========== MENU ==========
 MAIN_MENU = ReplyKeyboardMarkup(
-    [["🏁 شروع", "📘 درباره ما"], ["📝 ثبت‌نام", "🎓 آموزش رایگان"], ["💼 فرانچایز", "💬 پشتیبانی"]],
+    [["🏁 شروع", "📘 درباره ما"],
+     ["📝 ثبت‌نام", "🎓 آموزش رایگان"],
+     ["💼 فرانچایز", "💬 پشتیبانی"]],
     resize_keyboard=True,
 )
 
@@ -83,6 +85,7 @@ async def show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=MAIN_MENU,
     )
 
+
 async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📘 *درباره ما:*\n"
@@ -98,10 +101,12 @@ async def start_registration(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.message.reply_text("📝 لطفاً نام کامل خود را وارد کنید:", reply_markup=ReplyKeyboardRemove())
     return ASK_NAME
 
+
 async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["name"] = update.message.text.strip()
     await update.message.reply_text("خوب 🌟 حالا لطفاً ایمیل خود را وارد کنید:")
     return ASK_EMAIL
+
 
 async def ask_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
     email = normalize_email(update.message.text)
@@ -144,6 +149,7 @@ async def start_learning(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=ReplyKeyboardMarkup([["➡️ مرحله ۲", "🏁 منو اصلی"]], resize_keyboard=True),
     )
 
+
 async def learning_step2(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📈 *مرحله ۲: مدل فرانچایز دیجیتال مارکتینگ چیه؟*\n"
@@ -151,6 +157,7 @@ async def learning_step2(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
         reply_markup=ReplyKeyboardMarkup([["➡️ مرحله ۳", "🏁 منو اصلی"]], resize_keyboard=True),
     )
+
 
 async def learning_step3(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -191,7 +198,7 @@ async def appointment(update: Update, context: ContextTypes.DEFAULT_TYPE):
 telegram_request = HTTPXRequest(read_timeout=20, connect_timeout=10)
 application = Application.builder().token(TELEGRAM_TOKEN).request(telegram_request).build()
 
-# Conversation + menu handlers
+# Handlers
 conv_handler = ConversationHandler(
     entry_points=[MessageHandler(filters.Regex("^(📝 ثبت‌نام|ثبت نام)$"), start_registration)],
     states={ASK_NAME: [MessageHandler(filters.TEXT, ask_name)], ASK_EMAIL: [MessageHandler(filters.TEXT, ask_email)]},
@@ -211,7 +218,8 @@ application.add_handler(MessageHandler(filters.Regex("^(💬 پشتیبانی)$"
 
 # ========== FLASK & WEBHOOK ==========
 flask_app = Flask(__name__)
-loop = asyncio.get_event_loop()
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
 
 
 @flask_app.route(f"/webhook/{TELEGRAM_TOKEN}", methods=["POST", "GET"])
@@ -233,22 +241,34 @@ def index():
     return f"✅ Bot running — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"
 
 
+@flask_app.route("/meta.json", methods=["GET"])
+def meta():
+    return {"status": "ok", "bot": "digitalmarketingacademy-bot"}, 200
+
+
+@flask_app.route("/favicon.ico", methods=["GET"])
+def favicon():
+    return "", 204
+
+
 @flask_app.route("/healthz", methods=["GET"])
 def health_check():
     return {"status": "ok", "service": "digitalmarketingacademy-bot"}, 200
 
 
 def set_webhook():
-    try:
-        # clean old webhook
-        delete_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook"
-        requests.get(delete_url, timeout=10)
-        loop.run_until_complete(application.initialize())
-        webhook_url = f"{ROOT_URL.rstrip('/')}/webhook/{TELEGRAM_TOKEN}"
-        loop.run_until_complete(application.bot.set_webhook(webhook_url))
-        print(f"✅ Webhook set to {webhook_url}")
-    except Exception as e:
-        print("⚠️ Webhook setup failed:", e)
+    async def setup():
+        try:
+            delete_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook"
+            requests.get(delete_url, timeout=10)
+            await application.initialize()
+            webhook_url = f"{ROOT_URL.rstrip('/')}/webhook/{TELEGRAM_TOKEN}"
+            await application.bot.set_webhook(webhook_url)
+            print(f"✅ Webhook set to {webhook_url}")
+        except Exception as e:
+            print("⚠️ Webhook setup failed:", e)
+
+    loop.create_task(setup())
 
 
 set_webhook()
