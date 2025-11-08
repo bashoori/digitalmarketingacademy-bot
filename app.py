@@ -20,7 +20,7 @@ from telegram.request import HTTPXRequest
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GOOGLE_SHEET_WEBAPP_URL = os.getenv("GOOGLE_SHEET_WEBAPP_URL")
 SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "@support")
-ROOT_URL = os.getenv("ROOT_URL", "https://digitalmarketingbiz-bot.onrender.com")
+ROOT_URL = os.getenv("ROOT_URL", "https://digitalmarketingacademy-bot.onrender.com")
 PORT = int(os.getenv("PORT", "10000"))
 
 # ========== STORAGE ==========
@@ -233,7 +233,7 @@ def index():
 
 @flask_app.route("/healthz", methods=["GET"])
 def health_check():
-    return {"status": "ok", "service": "digitalmarketingbiz-bot", "timestamp": datetime.utcnow().isoformat() + "Z"}, 200
+    return {"status": "ok", "service": "digitalmarketingacademy-bot", "timestamp": datetime.utcnow().isoformat() + "Z"}, 200
 
 def set_webhook():
     try:
