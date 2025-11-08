@@ -1,8 +1,4 @@
-import os
-import re
-import json
-import requests
-import asyncio
+import os, re, json, requests, asyncio
 from datetime import datetime, timezone
 from flask import Flask, request as flask_request
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
@@ -79,7 +75,7 @@ ASK_NAME, ASK_EMAIL = range(2)
 
 # ========== TELEGRAM HANDLERS ==========
 async def show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print("📩 show_menu triggered!")  # debug log
+    print("📩 show_menu triggered!")
     await update.message.reply_text(
         "👋 سلام! به ربات دیجیتال مارکتینگ خوش آمدید.\n\n"
         "از منوی زیر انتخاب کنید:",
@@ -195,11 +191,10 @@ async def appointment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# ========== APP ==========
+# ========== TELEGRAM APP ==========
 telegram_request = HTTPXRequest(read_timeout=20, connect_timeout=10)
 application = Application.builder().token(TELEGRAM_TOKEN).request(telegram_request).build()
 
-# Conversation
 conv_handler = ConversationHandler(
     entry_points=[MessageHandler(filters.Regex("^(📝 ثبت‌نام|ثبت نام)$"), start_registration)],
     states={
@@ -209,7 +204,6 @@ conv_handler = ConversationHandler(
     fallbacks=[],
 )
 
-# Handlers
 application.add_handler(conv_handler)
 application.add_handler(CommandHandler("start", show_menu))
 application.add_handler(MessageHandler(filters.Regex("^(🏁 شروع|🏁 منو اصلی)$"), show_menu))
@@ -227,14 +221,13 @@ flask_app = Flask(__name__)
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
-
 @flask_app.route(f"/webhook/{TELEGRAM_TOKEN}", methods=["POST"])
 def webhook():
     try:
         data = flask_request.get_json(force=True)
         print("📦 RAW UPDATE:", json.dumps(data, ensure_ascii=False))
         update = Update.de_json(data, application.bot)
-        asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
+        loop.create_task(application.process_update(update))
         print("✅ Processed update successfully.")
         return "ok", 200
     except Exception as e:
@@ -253,21 +246,17 @@ def health_check():
 
 
 def set_webhook():
-    async def setup():
-        try:
-            requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook", timeout=10)
-            await application.initialize()
-            webhook_url = f"{ROOT_URL.rstrip('/')}/webhook/{TELEGRAM_TOKEN}"
-            await application.bot.set_webhook(webhook_url)
-            print(f"✅ Webhook set to {webhook_url}")
-        except Exception as e:
-            print("⚠️ Webhook setup failed:", e)
-
-    loop.create_task(setup())
+    try:
+        requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook", timeout=10)
+        loop.run_until_complete(application.initialize())
+        webhook_url = f"{ROOT_URL.rstrip('/')}/webhook/{TELEGRAM_TOKEN}"
+        loop.run_until_complete(application.bot.set_webhook(webhook_url))
+        print(f"✅ Webhook set to {webhook_url}")
+    except Exception as e:
+        print("⚠️ Webhook setup failed:", e)
 
 
 set_webhook()
-
 
 if __name__ == "__main__":
     print("🚀 Starting Digital Marketing Bot with advanced flow...")
