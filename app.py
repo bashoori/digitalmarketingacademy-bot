@@ -1,4 +1,4 @@
-import os, re, json, requests, asyncio
+import os, re, json, requests, asyncio, threading
 from datetime import datetime, timezone
 from flask import Flask, request as flask_request
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
@@ -218,8 +218,17 @@ application.add_handler(MessageHandler(filters.Regex("^(💬 پشتیبانی)$"
 
 # ========== FLASK & WEBHOOK ==========
 flask_app = Flask(__name__)
+
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
+
+# 🧩 Keep the event loop alive in background (Render-safe)
+def start_event_loop():
+    asyncio.set_event_loop(loop)
+    loop.run_forever()
+
+threading.Thread(target=start_event_loop, daemon=True).start()
+
 
 @flask_app.route(f"/webhook/{TELEGRAM_TOKEN}", methods=["POST"])
 def webhook():
@@ -227,7 +236,7 @@ def webhook():
         data = flask_request.get_json(force=True)
         print("📦 RAW UPDATE:", json.dumps(data, ensure_ascii=False))
         update = Update.de_json(data, application.bot)
-        loop.create_task(application.process_update(update))
+        asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
         print("✅ Processed update successfully.")
         return "ok", 200
     except Exception as e:
