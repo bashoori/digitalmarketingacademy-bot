@@ -231,7 +231,7 @@ loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
 
-@flask_app.route(f"/{TELEGRAM_TOKEN}", methods=["GET", "POST"])
+@flask_app.route(f"/webhook/{TELEGRAM_TOKEN}", methods=["GET", "POST"])
 def webhook():
     if flask_request.method == "GET":
         return "✅ Webhook endpoint active.", 200
@@ -258,8 +258,8 @@ def health_check():
 def set_webhook():
     try:
         loop.run_until_complete(application.initialize())
-        loop.run_until_complete(application.start())  # ✅ ensures handlers (like /start) load
-        webhook_url = f"{ROOT_URL.rstrip('/')}/{TELEGRAM_TOKEN}"
+        loop.run_until_complete(application.start())  # ensures handlers load
+        webhook_url = f"{ROOT_URL.rstrip('/')}/webhook/{TELEGRAM_TOKEN}"
         loop.run_until_complete(application.bot.set_webhook(webhook_url))
         print(f"✅ Webhook set to {webhook_url}")
         print("✅ Bot started successfully — ready to receive messages.")
