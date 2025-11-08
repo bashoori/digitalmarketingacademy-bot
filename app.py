@@ -16,12 +16,14 @@ from telegram.ext import (
 )
 from telegram.request import HTTPXRequest
 
+
 # ========== ENV CONFIG ==========
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GOOGLE_SHEET_WEBAPP_URL = os.getenv("GOOGLE_SHEET_WEBAPP_URL")
 SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "@support")
 ROOT_URL = os.getenv("ROOT_URL", "https://digitalmarketingacademy-bot.onrender.com")
 PORT = int(os.getenv("PORT", "10000"))
+
 
 # ========== STORAGE ==========
 LEADS_FILE = "leads.json"
@@ -37,6 +39,7 @@ def load_leads():
 def save_leads(leads):
     with open(LEADS_FILE, "w", encoding="utf-8") as f:
         json.dump(leads, f, ensure_ascii=False, indent=2)
+
 
 # ========== HELPERS ==========
 def normalize_email(raw: str) -> str:
@@ -60,17 +63,21 @@ def post_to_sheet(payload: dict, timeout: int = 10) -> bool:
         print("❌ post_to_sheet error:", e)
         return False
 
+
 # ========== MENU ==========
 MAIN_MENU = ReplyKeyboardMarkup(
     [["🏁 شروع", "📘 درباره ما"], ["📝 ثبت‌نام", "🎓 آموزش رایگان"], ["💼 فرانچایز", "💬 پشتیبانی"]],
     resize_keyboard=True,
 )
 
+
 # ========== STATES ==========
 ASK_NAME, ASK_EMAIL = range(2)
 
+
 # ========== TELEGRAM HANDLERS ==========
 async def show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print("📩 Received /start command")
     await update.message.reply_text(
         "👋 سلام! به ربات دیجیتال مارکتینگ خوش آمدید.\n\n"
         "از منوی زیر انتخاب کنید:",
@@ -85,6 +92,7 @@ async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
         reply_markup=MAIN_MENU,
     )
+
 
 # === Registration ===
 async def start_registration(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -126,6 +134,7 @@ async def ask_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return ConversationHandler.END
 
+
 # === Free Education Flow ===
 async def start_learning(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -153,6 +162,7 @@ async def learning_step3(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=ReplyKeyboardMarkup([["📅 رزرو جلسه", "🏁 منو اصلی"]], resize_keyboard=True),
     )
 
+
 # === Franchise Info ===
 async def franchise_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -164,6 +174,7 @@ async def franchise_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=MAIN_MENU,
     )
 
+
 # === Support ===
 async def support(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -171,6 +182,7 @@ async def support(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "یا پیامت رو همینجا بنویس تا برای تیم پشتیبانی ارسال بشه.",
         reply_markup=ReplyKeyboardMarkup([["🏁 منو اصلی"]], resize_keyboard=True),
     )
+
 
 # === Appointment ===
 async def appointment(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -181,10 +193,12 @@ async def appointment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=MAIN_MENU,
     )
 
+
 # === Cancel ===
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("❌ لغو شد.", reply_markup=MAIN_MENU)
     return ConversationHandler.END
+
 
 # ========== APP ==========
 telegram_request = HTTPXRequest(read_timeout=20, connect_timeout=10)
@@ -210,13 +224,17 @@ application.add_handler(MessageHandler(filters.Regex("^(➡️ مرحله ۳)$")
 application.add_handler(MessageHandler(filters.Regex("^(💼 فرانچایز)$"), franchise_info))
 application.add_handler(MessageHandler(filters.Regex("^(💬 پشتیبانی)$"), support))
 
+
 # ========== FLASK & WEBHOOK ==========
 flask_app = Flask(__name__)
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
-@flask_app.route(f"/{TELEGRAM_TOKEN}", methods=["POST"])
+
+@flask_app.route(f"/{TELEGRAM_TOKEN}", methods=["GET", "POST"])
 def webhook():
+    if flask_request.method == "GET":
+        return "✅ Webhook endpoint active.", 200
     try:
         data = flask_request.get_json(force=True)
         update = Update.de_json(data, application.bot)
@@ -226,23 +244,28 @@ def webhook():
         print("❌ Webhook error:", e)
     return "ok"
 
+
 @flask_app.route("/", methods=["GET"])
 def index():
     return f"✅ Bot running — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"
+
 
 @flask_app.route("/healthz", methods=["GET"])
 def health_check():
     return {"status": "ok", "service": "digitalmarketingacademy-bot", "timestamp": datetime.now(timezone.utc).isoformat()}, 200
 
+
 def set_webhook():
     try:
         loop.run_until_complete(application.initialize())
+        loop.run_until_complete(application.start())  # ✅ ensures handlers (like /start) load
         webhook_url = f"{ROOT_URL.rstrip('/')}/{TELEGRAM_TOKEN}"
         loop.run_until_complete(application.bot.set_webhook(webhook_url))
         print(f"✅ Webhook set to {webhook_url}")
         print("✅ Bot started successfully — ready to receive messages.")
     except Exception as e:
         print("⚠️ Webhook setup failed:", e)
+
 
 set_webhook()
 
