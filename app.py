@@ -255,10 +255,26 @@ def health_check():
     return {"status": "ok", "service": "digitalmarketingacademy-bot", "timestamp": datetime.now(timezone.utc).isoformat()}, 200
 
 
+@flask_app.route("/meta.json", methods=["GET"])
+def meta():
+    # فقط برای اینکه Render 404 تو لاگ نشون نده
+    return {"status": "ok", "app": "digitalmarketingacademy-bot"}, 200
+
+
 def set_webhook():
     try:
+        # 1) پاک کردن هر webhook قبلی
+        delete_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook"
+        try:
+            resp = requests.get(delete_url, timeout=10)
+            print("🧹 deleteWebhook:", resp.status_code, resp.text[:120])
+        except Exception as e:
+            print("⚠️ deleteWebhook failed:", e)
+
+        # 2) راه‌اندازی اپ و ست کردن webhook جدید
         loop.run_until_complete(application.initialize())
         loop.run_until_complete(application.start())  # ensures handlers load
+
         webhook_url = f"{ROOT_URL.rstrip('/')}/webhook/{TELEGRAM_TOKEN}"
         loop.run_until_complete(application.bot.set_webhook(webhook_url))
         print(f"✅ Webhook set to {webhook_url}")
