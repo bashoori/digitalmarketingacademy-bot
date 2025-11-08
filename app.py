@@ -275,9 +275,9 @@ def set_webhook():
         loop.run_until_complete(application.initialize())
         loop.run_until_complete(application.start())  # ensures handlers load
 
-        WEBHOOK_URL = f"{ROOT_URL.rstrip('/')}/webhook/{TELEGRAM_TOKEN}"
-        loop.run_until_complete(application.bot.set_webhook(WEBHOOK_URL))
-        print(f"✅ Webhook set to {WEBHOOK_URL}")
+        webhook_url = f"{ROOT_URL.rstrip('/')}/webhook/{TELEGRAM_TOKEN}"
+        loop.run_until_complete(application.bot.set_webhook(webhook_url))
+        print(f"✅ Webhook set to {webhook_url}")
         print("✅ Bot started successfully — ready to receive messages.")
     except Exception as e:
         print("⚠️ Webhook setup failed:", e)
