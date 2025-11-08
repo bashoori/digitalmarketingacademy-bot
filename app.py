@@ -257,23 +257,19 @@ def health_check():
 
 @flask_app.route("/meta.json", methods=["GET"])
 def meta():
-    # فقط برای اینکه Render 404 تو لاگ نشون نده
     return {"status": "ok", "app": "digitalmarketingacademy-bot"}, 200
 
 
 def set_webhook():
     try:
-        # 1) پاک کردن هر webhook قبلی
+        # clean up old webhook first
         delete_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook"
-        try:
-            resp = requests.get(delete_url, timeout=10)
-            print("🧹 deleteWebhook:", resp.status_code, resp.text[:120])
-        except Exception as e:
-            print("⚠️ deleteWebhook failed:", e)
+        resp = requests.get(delete_url, timeout=10)
+        print("🧹 deleteWebhook:", resp.status_code, resp.text[:120])
 
-        # 2) راه‌اندازی اپ و ست کردن webhook جدید
+        # init + set new webhook
         loop.run_until_complete(application.initialize())
-        loop.run_until_complete(application.start())  # ensures handlers load
+        loop.run_until_complete(application.start())
 
         webhook_url = f"{ROOT_URL.rstrip('/')}/webhook/{TELEGRAM_TOKEN}"
         loop.run_until_complete(application.bot.set_webhook(webhook_url))
@@ -285,6 +281,14 @@ def set_webhook():
 
 set_webhook()
 
+
 if __name__ == "__main__":
     print("🚀 Starting Digital Marketing Bot with advanced flow...")
-    flask_app.run(host="0.0.0.0", port=PORT)
+    try:
+        flask_app.run(host="0.0.0.0", port=PORT)
+    finally:
+        try:
+            loop.close()
+            print("🧹 Event loop closed cleanly.")
+        except Exception:
+            pass
