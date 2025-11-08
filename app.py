@@ -31,7 +31,6 @@ if not TELEGRAM_TOKEN:
 # ========== STORAGE ==========
 LEADS_FILE = "leads.json"
 
-
 def load_leads():
     if not os.path.exists(LEADS_FILE):
         return []
@@ -40,7 +39,6 @@ def load_leads():
             return json.load(f)
     except Exception:
         return []
-
 
 def save_leads(leads):
     with open(LEADS_FILE, "w", encoding="utf-8") as f:
@@ -53,13 +51,9 @@ def normalize_email(raw: str) -> str:
         return ""
     return raw.replace("\u200c", "").replace("\u200f", "").strip().lower()
 
-
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
-
-
 def is_valid_email(email: str) -> bool:
     return EMAIL_RE.match(email.strip()) if email else False
-
 
 def post_to_sheet(payload: dict, timeout: int = 10) -> bool:
     """Send lead data to Google Sheet Web App."""
@@ -215,7 +209,12 @@ async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ========== TELEGRAM APPLICATION ==========
-telegram_request = HTTPXRequest(read_timeout=20, connect_timeout=10)
+telegram_request = HTTPXRequest(
+    connect_timeout=30,
+    read_timeout=60,
+    write_timeout=30,
+    pool_timeout=30,
+)
 application = Application.builder().token(TELEGRAM_TOKEN).request(telegram_request).build()
 
 conv_handler = ConversationHandler(
@@ -253,8 +252,15 @@ def webhook():
         data = flask_request.get_json(force=True)
         print("📦 RAW UPDATE:", json.dumps(data, ensure_ascii=False))
         update = Update.de_json(data, application.bot)
-        # ✅ Run synchronously for reliable message sending
-        loop.run_until_complete(application.process_update(update))
+
+        # ✅ Run synchronously with a 60s timeout safety
+        try:
+            loop.run_until_complete(
+                asyncio.wait_for(application.process_update(update), timeout=60)
+            )
+        except asyncio.TimeoutError:
+            print("⚠️ Telegram update took too long — skipped.")
+
         print("✅ Processed update successfully.")
         return "ok", 200
     except Exception as e:
@@ -273,12 +279,17 @@ def health_check():
 
 
 def set_webhook():
+    """Initialize the bot and safely set the webhook."""
     try:
         loop.run_until_complete(application.initialize())
         webhook_url = f"{ROOT_URL.rstrip('/')}/webhook/{TELEGRAM_TOKEN}"
-        loop.run_until_complete(application.bot.set_webhook(webhook_url))
+        loop.run_until_complete(
+            asyncio.wait_for(application.bot.set_webhook(webhook_url), timeout=60)
+        )
         print(f"✅ Webhook set to {webhook_url}")
         print("✅ Bot started successfully — ready to receive messages.")
+    except asyncio.TimeoutError:
+        print("⚠️ Webhook setup timed out — retrying may be needed.")
     except Exception as e:
         print("⚠️ Webhook setup failed:", e)
 
