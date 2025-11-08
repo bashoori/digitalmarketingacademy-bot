@@ -11,15 +11,16 @@ from telegram.request import HTTPXRequest
 # ========== ENV CONFIG ==========
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ROOT_URL = os.getenv("ROOT_URL", "https://digitalmarketingacademy-bot.onrender.com")
-PORT = int(os.getenv("PORT", "10000"))
 GOOGLE_SHEET_WEBAPP_URL = os.getenv("GOOGLE_SHEET_WEBAPP_URL")
 SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "@BitaDigitalSupport")
+PORT = int(os.getenv("PORT", "10000"))
 
 if not TELEGRAM_TOKEN:
     raise RuntimeError("❌ TELEGRAM_TOKEN not set")
 
 # ========== STORAGE ==========
 LEADS_FILE = "leads.json"
+
 def load_leads():
     if not os.path.exists(LEADS_FILE):
         return []
@@ -31,34 +32,55 @@ def load_leads():
 def save_leads(leads):
     json.dump(leads, open(LEADS_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
 
-def user_has_email(user_id):
-    leads = load_leads()
-    return any(str(l.get("user_id")) == str(user_id) for l in leads)
-
 # ========== HELPERS ==========
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 def normalize_email(s): return s.replace("\u200c","").replace("\u200f","").strip().lower()
 def is_valid_email(e): return EMAIL_RE.match(e) if e else False
 
 def post_to_sheet(payload):
+    """Send registration info to Google Sheet."""
     if not GOOGLE_SHEET_WEBAPP_URL:
+        print("⚠️ GOOGLE_SHEET_WEBAPP_URL not set.")
         return False
     try:
-        r = requests.post(GOOGLE_SHEET_WEBAPP_URL, json=payload, timeout=10)
-        print(f"📤 POST Sheet → {r.status_code}")
+        r = requests.post(GOOGLE_SHEET_WEBAPP_URL, json=payload, timeout=8)
+        print(f"📤 POST → {r.status_code} {r.text[:80]}")
         return r.status_code == 200
     except Exception as e:
-        print("❌ post_to_sheet error:", e)
+        print("⚠️ post_to_sheet failed:", e)
         return False
+
+def user_has_email(user_id):
+    """Check if user already registered in Google Sheet or local leads."""
+    # 1️⃣ Try Google Sheet
+    if GOOGLE_SHEET_WEBAPP_URL:
+        try:
+            url = f"{GOOGLE_SHEET_WEBAPP_URL}?check_id={user_id}"
+            r = requests.get(url, timeout=5)
+            if r.ok:
+                data = r.json()
+                if data.get("exists"):
+                    print(f"✅ user {user_id} found in Google Sheet")
+                    return True
+        except Exception as e:
+            print("⚠️ user_has_email(): Google timeout → fallback local:", e)
+
+    # 2️⃣ Fallback to local JSON
+    leads = load_leads()
+    found = any(str(l.get("user_id")) == str(user_id) for l in leads)
+    print(f"🔍 Local check for {user_id} →", found)
+    return found
 
 # ========== MENU ==========
 MAIN_MENU = ReplyKeyboardMarkup(
-    [["🏁 شروع", "📘 درباره ما"],
-     ["📝 ثبت‌نام", "🎓 آموزش رایگان"],
-     ["💼 فرانچایز", "📅 رزرو جلسه"],
-     ["📚 منابع رایگان", "🎁 هدیه ویژه"],
-     ["💬 پشتیبانی"]],
-    resize_keyboard=True
+    [
+        ["🏁 شروع", "📘 درباره ما"],
+        ["📝 ثبت‌نام", "🎓 آموزش رایگان"],
+        ["💼 فرانچایز", "📅 رزرو جلسه"],
+        ["📚 منابع رایگان", "🎁 هدیه ویژه"],
+        ["💬 پشتیبانی"],
+    ],
+    resize_keyboard=True,
 )
 
 ASK_NAME, ASK_EMAIL = range(2)
@@ -67,24 +89,30 @@ ASK_NAME, ASK_EMAIL = range(2)
 async def show_menu(update, ctx):
     await update.message.reply_text(
         "👋 سلام! به ربات دیجیتال مارکتینگ خوش آمدید.\nاز منوی زیر انتخاب کنید:",
-        reply_markup=MAIN_MENU)
+        reply_markup=MAIN_MENU,
+    )
 
 async def about(update, ctx):
     await update.message.reply_text(
-        "📘 *درباره ما:*\nما آموزش و راه‌اندازی بیزنس آنلاین و فرانچایز را برای همه ساده کرده‌ایم.",
-        parse_mode="Markdown", reply_markup=MAIN_MENU)
+        "📘 *درباره ما:*\n"
+        "ما آموزش و راه‌اندازی بیزنس آنلاین، اتوماسیون و دیجیتال مارکتینگ را برای همه ساده کرده‌ایم.",
+        parse_mode="Markdown", reply_markup=MAIN_MENU,
+    )
 
 # === ثبت نام ===
 async def start_registration(update, ctx):
-    await update.message.reply_text("📝 لطفاً نام کامل خود را وارد کنید:",
-                                    reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text(
+        "📝 لطفاً نام کامل خود را وارد کنید:",
+        reply_markup=ReplyKeyboardRemove(),
+    )
     return ASK_NAME
 
 async def ask_name(update, ctx):
     ctx.user_data["name"] = update.message.text.strip()
     await update.message.reply_text(
         "خوب 🌟 حالا لطفاً ایمیل خود را وارد کنید یا روی ❌ انصراف بزن:",
-        reply_markup=ReplyKeyboardMarkup([["❌ انصراف"]], resize_keyboard=True))
+        reply_markup=ReplyKeyboardMarkup([["❌ انصراف"]], resize_keyboard=True),
+    )
     return ASK_EMAIL
 
 async def ask_email(update, ctx):
@@ -104,62 +132,69 @@ async def ask_email(update, ctx):
         "username": update.effective_user.username,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
+
     leads = load_leads(); leads.append(lead); save_leads(leads)
     post_to_sheet(lead)
-
-    await update.message.reply_text(
-        f"✅ {lead['name']}، ثبت‌نام شما با موفقیت انجام شد!",
-        reply_markup=MAIN_MENU)
+    await update.message.reply_text(f"✅ {lead['name']}، ثبت‌نام شما با موفقیت انجام شد!", reply_markup=MAIN_MENU)
     return ConversationHandler.END
 
-# === منوهای آموزشی ===
+# === آموزشی ===
 async def free_course(update, ctx):
     await update.message.reply_text(
-        "🎓 آموزش پایه: سه مرحله برای شروع دیجیتال مارکتینگ",
-        reply_markup=MAIN_MENU)
+        "🎓 مرحله ۱: شروع دیجیتال مارکتینگ\n"
+        "📈 یاد بگیر چطور برند شخصی بسازی و کسب‌وکار دیجیتال راه بندازی.",
+        reply_markup=MAIN_MENU,
+    )
 
 async def franchise(update, ctx):
     await update.message.reply_text(
-        "💼 مدل فرانچایز یعنی همکاری با برند ما برای فروش محصولات و کسب درآمد.",
-        reply_markup=MAIN_MENU)
+        "💼 مدل فرانچایز یعنی همکاری با برند ما برای فروش محصولات و کسب درآمد.\n"
+        "بدون نیاز به ساخت محصول از صفر!",
+        reply_markup=MAIN_MENU,
+    )
 
 async def appointment(update, ctx):
     await update.message.reply_text(
         "📅 برای رزرو جلسه رایگان:\n👉 https://calendly.com/your-link",
-        reply_markup=MAIN_MENU)
+        reply_markup=MAIN_MENU,
+    )
 
-# === فقط برای کاربران ثبت‌شده ===
+# === فقط برای ثبت‌نام‌شده‌ها ===
 async def resources(update, ctx):
     if not user_has_email(update.effective_user.id):
-        await update.message.reply_text("🔒 این بخش فقط برای کاربران ثبت‌نام‌کرده در دسترس است.",
-                                        reply_markup=MAIN_MENU)
+        await update.message.reply_text("🔒 این بخش فقط برای کاربران ثبت‌نام‌کرده در دسترس است.", reply_markup=MAIN_MENU)
         return
     await update.message.reply_text(
-        "📚 منابع رایگان:\n- ویدیوها: https://youtube.com/@BitaDigital\n- فایل‌ها: https://bitadigitalhub.com/resources",
-        reply_markup=MAIN_MENU)
+        "📚 منابع رایگان:\n"
+        "- 🎥 ویدیوها: https://youtube.com/@BitaDigital\n"
+        "- 📘 فایل‌ها: https://bitadigitalhub.com/resources",
+        reply_markup=MAIN_MENU,
+    )
 
 async def gift(update, ctx):
     if not user_has_email(update.effective_user.id):
-        await update.message.reply_text("🎁 این هدیه مخصوص کاربران ثبت‌نام‌کرده است.",
-                                        reply_markup=MAIN_MENU)
+        await update.message.reply_text("🎁 این هدیه مخصوص کاربران ثبت‌نام‌کرده است.", reply_markup=MAIN_MENU)
         return
-    await update.message.reply_text("🎉 هدیه ویژه شما: https://bitadigitalhub.com/gift",
-                                    reply_markup=MAIN_MENU)
-
-# === نکات روز ===
-TIPS = [
-    "📈 تمرکز روی ارزش محتوا مهم‌تر از تبلیغاته.",
-    "💬 با مخاطب مثل دوست حرف بزن، نه مشتری.",
-    "🎯 ساده بنویس، ولی مؤثر.",
-]
-async def daily_tip(update, ctx):
-    await update.message.reply_text(random.choice(TIPS), reply_markup=MAIN_MENU)
+    await update.message.reply_text(
+        "🎉 هدیه ویژه شما آماده است:\n👉 https://bitadigitalhub.com/gift",
+        reply_markup=MAIN_MENU,
+    )
 
 # === پشتیبانی ===
 async def support(update, ctx):
     await update.message.reply_text(
         f"💬 برای ارتباط با پشتیبانی پیام بده به: {SUPPORT_USERNAME}",
-        reply_markup=MAIN_MENU)
+        reply_markup=MAIN_MENU,
+    )
+
+# === نکات روز ===
+TIPS = [
+    "💡 محتوای باارزش باعث اعتماد می‌شه، نه تبلیغ زیاد.",
+    "🎯 ساده و واقعی بنویس تا مخاطب حس اعتماد کنه.",
+    "📈 ثبات در انتشار محتوا از هر چیز مهم‌تره.",
+]
+async def daily_tip(update, ctx):
+    await update.message.reply_text(random.choice(TIPS), reply_markup=MAIN_MENU)
 
 # ========== TELEGRAM APP ==========
 application = Application.builder().token(TELEGRAM_TOKEN).request(
@@ -193,10 +228,14 @@ loop = asyncio.new_event_loop(); asyncio.set_event_loop(loop)
 
 @flask_app.route(f"/webhook/{TELEGRAM_TOKEN}", methods=["POST"])
 def webhook():
-    data = flask_request.get_json(force=True)
-    update = Update.de_json(data, application.bot)
-    loop.run_until_complete(application.process_update(update))
-    return "ok", 200
+    try:
+        data = flask_request.get_json(force=True)
+        update = Update.de_json(data, application.bot)
+        loop.run_until_complete(application.process_update(update))
+        return "ok", 200
+    except Exception as e:
+        print("❌ Webhook error:", e)
+        return "error", 500
 
 @flask_app.route("/", methods=["GET"])
 def index():
@@ -211,4 +250,5 @@ def set_webhook():
 set_webhook()
 
 if __name__ == "__main__":
+    print("🚀 Starting Digital Marketing Academy Bot ...")
     flask_app.run(host="0.0.0.0", port=PORT)
