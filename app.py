@@ -90,6 +90,8 @@ async def show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "از منوی زیر انتخاب کنید:",
         reply_markup=MAIN_MENU,
     )
+    print("📨 Replying to user:", update.effective_user.id, update.message.text)
+
 
 
 async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
