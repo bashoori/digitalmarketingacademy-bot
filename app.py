@@ -1,5 +1,6 @@
 import os, re, json, requests, asyncio, random
 from datetime import datetime, timezone
+from threading import Thread
 from flask import Flask, request as flask_request
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
@@ -25,15 +26,18 @@ def load_leads():
     if not os.path.exists(LEADS_FILE):
         return []
     try:
-        return json.load(open(LEADS_FILE, "r", encoding="utf-8"))
+        with open(LEADS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
     except Exception:
         return []
 
 def save_leads(leads):
-    json.dump(leads, open(LEADS_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+    with open(LEADS_FILE, "w", encoding="utf-8") as f:
+        json.dump(leads, f, ensure_ascii=False, indent=2)
 
 # ========== HELPERS ==========
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
+
 def normalize_email(s): return s.replace("\u200c","").replace("\u200f","").strip().lower()
 def is_valid_email(e): return EMAIL_RE.match(e) if e else False
 
@@ -224,14 +228,16 @@ application.add_handler(MessageHandler(filters.Regex("^(💡 نکات روز)$")
 
 # ========== FLASK & WEBHOOK ==========
 flask_app = Flask(__name__)
-loop = asyncio.new_event_loop(); asyncio.set_event_loop(loop)
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
 
 @flask_app.route(f"/webhook/{TELEGRAM_TOKEN}", methods=["POST"])
 def webhook():
     try:
         data = flask_request.get_json(force=True)
         update = Update.de_json(data, application.bot)
-        loop.run_until_complete(application.process_update(update))
+        loop.create_task(application.process_update(update))
+        print("✅ Processed update successfully.")
         return "ok", 200
     except Exception as e:
         print("❌ Webhook error:", e)
@@ -239,15 +245,21 @@ def webhook():
 
 @flask_app.route("/", methods=["GET"])
 def index():
-    return f"✅ Bot running — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"
+    return f"✅ Bot is running — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"
 
-def set_webhook():
+@flask_app.route("/healthz", methods=["GET"])
+def healthz():
+    return {"status": "ok", "service": "digitalmarketingacademy-bot"}, 200
+
+def init_bot():
+    asyncio.set_event_loop(loop)
     loop.run_until_complete(application.initialize())
-    url = f"{ROOT_URL.rstrip('/')}/webhook/{TELEGRAM_TOKEN}"
-    loop.run_until_complete(application.bot.set_webhook(url))
-    print(f"✅ Webhook set to {url}")
+    webhook_url = f"{ROOT_URL.rstrip('/')}/webhook/{TELEGRAM_TOKEN}"
+    loop.run_until_complete(application.bot.set_webhook(webhook_url))
+    print(f"✅ Webhook set to {webhook_url}")
+    loop.run_forever()
 
-set_webhook()
+Thread(target=init_bot, daemon=True).start()
 
 if __name__ == "__main__":
     print("🚀 Starting Digital Marketing Academy Bot ...")
