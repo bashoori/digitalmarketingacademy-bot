@@ -19,22 +19,6 @@ PORT = int(os.getenv("PORT", "10000"))
 if not TELEGRAM_TOKEN:
     raise RuntimeError("❌ TELEGRAM_TOKEN not set")
 
-# ========== STORAGE ==========
-LEADS_FILE = "leads.json"
-
-def load_leads():
-    if not os.path.exists(LEADS_FILE):
-        return []
-    try:
-        with open(LEADS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return []
-
-def save_leads(leads):
-    with open(LEADS_FILE, "w", encoding="utf-8") as f:
-        json.dump(leads, f, ensure_ascii=False, indent=2)
-
 # ========== HELPERS ==========
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 
@@ -42,7 +26,7 @@ def normalize_email(s): return s.replace("\u200c","").replace("\u200f","").strip
 def is_valid_email(e): return EMAIL_RE.match(e) if e else False
 
 def post_to_sheet(payload):
-    """Send registration info to Google Sheet."""
+    """Send registration info directly to Google Sheet."""
     if not GOOGLE_SHEET_WEBAPP_URL:
         print("⚠️ GOOGLE_SHEET_WEBAPP_URL not set.")
         return False
@@ -53,27 +37,6 @@ def post_to_sheet(payload):
     except Exception as e:
         print("⚠️ post_to_sheet failed:", e)
         return False
-
-def user_has_email(user_id):
-    """Check if user already registered in Google Sheet or local leads."""
-    # 1️⃣ Try Google Sheet
-    if GOOGLE_SHEET_WEBAPP_URL:
-        try:
-            url = f"{GOOGLE_SHEET_WEBAPP_URL}?check_id={user_id}"
-            r = requests.get(url, timeout=5)
-            if r.ok:
-                data = r.json()
-                if data.get("exists"):
-                    print(f"✅ user {user_id} found in Google Sheet")
-                    return True
-        except Exception as e:
-            print("⚠️ user_has_email(): Google timeout → fallback local:", e)
-
-    # 2️⃣ Fallback to local JSON
-    leads = load_leads()
-    found = any(str(l.get("user_id")) == str(user_id) for l in leads)
-    print(f"🔍 Local check for {user_id} →", found)
-    return found
 
 # ========== MENU ==========
 MAIN_MENU = ReplyKeyboardMarkup(
@@ -137,7 +100,6 @@ async def ask_email(update, ctx):
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    leads = load_leads(); leads.append(lead); save_leads(leads)
     post_to_sheet(lead)
     await update.message.reply_text(f"✅ {lead['name']}، ثبت‌نام شما با موفقیت انجام شد!", reply_markup=MAIN_MENU)
     return ConversationHandler.END
@@ -165,9 +127,6 @@ async def appointment(update, ctx):
 
 # === فقط برای ثبت‌نام‌شده‌ها ===
 async def resources(update, ctx):
-    if not user_has_email(update.effective_user.id):
-        await update.message.reply_text("🔒 این بخش فقط برای کاربران ثبت‌نام‌کرده در دسترس است.", reply_markup=MAIN_MENU)
-        return
     await update.message.reply_text(
         "📚 منابع رایگان:\n"
         "- 🎥 ویدیوها: https://youtube.com/@BitaDigital\n"
@@ -176,9 +135,6 @@ async def resources(update, ctx):
     )
 
 async def gift(update, ctx):
-    if not user_has_email(update.effective_user.id):
-        await update.message.reply_text("🎁 این هدیه مخصوص کاربران ثبت‌نام‌کرده است.", reply_markup=MAIN_MENU)
-        return
     await update.message.reply_text(
         "🎉 هدیه ویژه شما آماده است:\n👉 https://bitadigitalhub.com/gift",
         reply_markup=MAIN_MENU,
