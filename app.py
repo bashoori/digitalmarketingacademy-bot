@@ -20,7 +20,7 @@ from telegram.request import HTTPXRequest
 # ========== ENV CONFIG ==========
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GOOGLE_SHEET_WEBAPP_URL = os.getenv("GOOGLE_SHEET_WEBAPP_URL")
-SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "@support")
+SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "https://t.me/+45IyTlpGI4QwNTRh")
 ROOT_URL = os.getenv("ROOT_URL", "https://digitalmarketingacademy-bot.onrender.com")
 PORT = int(os.getenv("PORT", "10000"))
 
@@ -198,7 +198,7 @@ async def support(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def appointment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "📅 برای رزرو جلسه رایگان وارد لینک شو:\nhttps://calendly.com/your-link",
+        "📅 برای رزرو جلسه رایگان وارد لینک شو:\nhttps://calendly.com/bitadigital",
         reply_markup=MAIN_MENU,
     )
 
