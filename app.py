@@ -20,7 +20,7 @@ from telegram.request import HTTPXRequest
 # ========== ENV CONFIG ==========
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GOOGLE_SHEET_WEBAPP_URL = os.getenv("GOOGLE_SHEET_WEBAPP_URL")
-SUPPORT_USERNAME = os.getenv("Support")
+SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "@support")
 ROOT_URL = os.getenv("ROOT_URL", "https://digitalmarketingacademy-bot.onrender.com")
 PORT = int(os.getenv("PORT", "10000"))
 
@@ -162,7 +162,7 @@ async def start_learning(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def learning_step2(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📈 *مرحله ۲: مدل فرانچایز دیجیتال مارکتینگ چیه؟*\n"
-        "ما بهت آموزش می‌دیم چطور با تبلیغات و فروش دیجیتال، درآمد واقعی آنلاین بسازی.",
+        "ما بهت آموزش می‌دیم چطور با تبلیغات و فروش دیجیتال، محصولات شرکت اسپانسر رو بفروشی و پورسانت بگیری.",
         parse_mode="Markdown",
         reply_markup=ReplyKeyboardMarkup([["➡️ مرحله ۳", "🏁 منو اصلی"]], resize_keyboard=True),
     )
@@ -218,7 +218,7 @@ telegram_request = HTTPXRequest(
 application = Application.builder().token(TELEGRAM_TOKEN).request(telegram_request).build()
 
 conv_handler = ConversationHandler(
-    entry_points=[MessageHandler(filters.Regex("^(📝 ثبت‌نام|ثبت نام)$"), start_registration)],
+    entry_points=[MessageHandler(filters.Regex("^(📝دریافت اطلاعات)$"), start_registration)],
     states={
         ASK_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_name)],
         ASK_EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_email)],
