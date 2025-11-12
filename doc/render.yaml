@@ -6,19 +6,17 @@ services:
     plan: starter
 
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:flask_app --worker-class gthread --threads 2 --timeout 180
+    startCommand: gunicorn app:flask_app --worker-class gthread --threads 4 --timeout 120
 
     envVars:
       - key: TELEGRAM_TOKEN
         sync: false
       - key: GOOGLE_SHEET_WEBAPP_URL
         sync: false
-      - key: ROOT_URL
+      - key: WEBHOOK_URL
         value: https://digitalmarketingacademy-bot.onrender.com
-      - key: SUPPORT_USERNAME
-        value: "@support"
       - key: PORT
         value: 10000
 
-    healthCheckPath: /healthz
+    healthCheckPath: /
     autoDeploy: true
