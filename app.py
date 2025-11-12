@@ -73,7 +73,7 @@ def post_to_sheet(payload: dict, timeout: int = 10) -> bool:
 MAIN_MENU = ReplyKeyboardMarkup(
     [
         ["🏁 شروع", "📘 درباره ما"],
-        ["📥 دریافت اطلاعات", "🎓 آموزش رایگان"],
+        ["📝 ثبت‌نام", "🎓 آموزش رایگان"],
         ["💼 فرانچایز", "💬 پشتیبانی"],
     ],
     resize_keyboard=True,
@@ -105,9 +105,9 @@ async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# === Information Collection ===
+# === Registration ===
 async def start_registration(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("📥 لطفاً نام کامل خود را وارد کنید:", reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text("📝 لطفاً نام کامل خود را وارد کنید:", reply_markup=ReplyKeyboardRemove())
     return ASK_NAME
 
 
@@ -139,7 +139,7 @@ async def ask_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_leads(leads)
 
     posted = post_to_sheet(lead)
-    text = f"✅ {name}، اطلاعات شما با موفقیت دریافت شد!" if posted else "✅ اطلاعات شما دریافت شد (ذخیره محلی موفق)."
+    text = f"✅ {name}، ثبت‌نام شما انجام شد!" if posted else "✅ ثبت‌نام انجام شد (ذخیره محلی موفق)."
 
     await update.message.reply_text(
         text + "\n\n🎓 حالا می‌خوای آموزش رایگان شروع دیجیتال مارکتینگ رو ببینی؟",
@@ -218,7 +218,7 @@ telegram_request = HTTPXRequest(
 application = Application.builder().token(TELEGRAM_TOKEN).request(telegram_request).build()
 
 conv_handler = ConversationHandler(
-    entry_points=[MessageHandler(filters.Regex("^(📥 دریافت اطلاعات|دریافت اطلاعات)$"), start_registration)],
+    entry_points=[MessageHandler(filters.Regex("^(📝 ثبت‌نام|ثبت نام)$"), start_registration)],
     states={
         ASK_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_name)],
         ASK_EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_email)],
@@ -247,11 +247,13 @@ asyncio.set_event_loop(loop)
 
 @flask_app.route(f"/webhook/{TELEGRAM_TOKEN}", methods=["POST"])
 def webhook():
+    """Main Telegram webhook endpoint (synchronous to ensure delivery)."""
     try:
         data = flask_request.get_json(force=True)
         print("📦 RAW UPDATE:", json.dumps(data, ensure_ascii=False))
         update = Update.de_json(data, application.bot)
 
+        # ✅ Run synchronously with a 60s timeout safety
         try:
             loop.run_until_complete(
                 asyncio.wait_for(application.process_update(update), timeout=60)
@@ -277,6 +279,7 @@ def health_check():
 
 
 def set_webhook():
+    """Initialize the bot and safely set the webhook."""
     try:
         loop.run_until_complete(application.initialize())
         webhook_url = f"{ROOT_URL.rstrip('/')}/webhook/{TELEGRAM_TOKEN}"
@@ -289,6 +292,9 @@ def set_webhook():
         print("⚠️ Webhook setup timed out — retrying may be needed.")
     except Exception as e:
         print("⚠️ Webhook setup failed:", e)
+
+
+    
 
 
 set_webhook()
